@@ -7,12 +7,48 @@
 	use Stoic\Pdo\BaseDbQueryTypes;
 	use Stoic\Pdo\BaseDbTypes;
 
+	/**
+	 * Represents a single user session for authentication purposes.
+	 *
+	 * @package Stoic\User
+	 * @version 1.0.0
+	 */
 	class Session extends BaseDbModel {
+		/**
+		 * Network address associated with this session.
+		 *
+		 * @var string
+		 */
 		public $address;
+		/**
+		 * Date and time the session was created.
+		 *
+		 * @var null|\DateTimeInterface
+		 */
 		public $created;
+		/**
+		 * Network hostname associated with this session.
+		 *
+		 * @var string
+		 */
 		public $hostname;
+		/**
+		 * Unique identifier for this session.
+		 *
+		 * @var integer
+		 */
 		public $id;
+		/**
+		 * Token value associated with this session.
+		 *
+		 * @var string
+		 */
 		public $token;
+		/**
+		 * Identifier for user who belongs to this session.
+		 *
+		 * @var integer
+		 */
 		public $userId;
 
 

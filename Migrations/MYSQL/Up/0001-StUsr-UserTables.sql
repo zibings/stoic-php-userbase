@@ -40,7 +40,8 @@ CREATE TABLE `UserSession` (
 	`Address` NVARCHAR(256) NOT NULL,
 	`Created` DATETIME NOT NULL,
 	PRIMARY KEY (`ID`),
-	FOREIGN KEY `FK_UserSessionUser` (`UserID`) REFERENCES `User` (`ID`)	ON UPDATE CASCADE ON DELETE RESTRICT
+	FOREIGN KEY `FK_UserSessionUser` (`UserID`) REFERENCES `User` (`ID`)	ON UPDATE CASCADE ON DELETE RESTRICT,
+	CONSTRAINT `IX_UserSessionToken` UNIQUE(`UserID`, `Token`)
 );
 
 CREATE INDEX `IX_Session_UserID` ON `UserSession` (`UserID`);
@@ -49,7 +50,7 @@ CREATE INDEX `IX_Session_UserID_Token` ON `UserSession` (`UserID`, `Token`);
 CREATE TABLE `UserToken` (
 	`UserID` INT UNSIGNED NOT NULL,
 	`Token` NVARCHAR(128) NULL,
-	`TokenCreated` DATETIME NULL
+	`Created` DATETIME NULL
 );
 
 CREATE INDEX `UserToken_User` ON `UserToken` (`UserID`);
