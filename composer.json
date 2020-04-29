@@ -1,0 +1,20 @@
+{
+  "name": "stoic/userbase",
+  "description": "Basic user component, includes simple authentication framework",
+  "version": "1.0.0",
+  "homepage": "https://stoic-framework.com",
+  "autoload": {
+    "classmap": [ "User/" ],
+    "exclude-from-classmap": [
+      "Tests/"
+    ],
+    "files": ["QueryBuilder.php"]
+  },
+  "require": {
+    "php": "^7.2",
+    "stoic/web": "^1.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^8.5"
+  }
+}
