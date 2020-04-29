@@ -1,8 +1,12 @@
-# stoic-php-web
-PHP version of Stoic Framework's Web scaffold.
+# stoic-php-userbase
+A thorough but simplistic user system to sit on top of Stoic:PHP's Web component.
 
 ## Installation
-In order to install, simply make use of composer (eventually).
+In order to install, simply make use of composer:
+
+```
+composer require stoic/userbase
+```
 
 ## Documentation
-Documentation is available in the [Docs](Docs/index.md) directory.
+Documentation is available on our website, [https://stoic-framework.com](https://stoic-framework.com).

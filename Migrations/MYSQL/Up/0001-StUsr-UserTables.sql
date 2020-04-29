@@ -50,7 +50,8 @@ CREATE INDEX `IX_Session_UserID_Token` ON `UserSession` (`UserID`, `Token`);
 CREATE TABLE `UserToken` (
 	`UserID` INT UNSIGNED NOT NULL,
 	`Token` NVARCHAR(128) NULL,
-	`Created` DATETIME NULL
+	`Created` DATETIME NOT NULL,
+	`Purpose` VARCHAR(10) NOT NULL
 );
 
 CREATE INDEX `UserToken_User` ON `UserToken` (`UserID`);
