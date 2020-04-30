@@ -82,7 +82,7 @@
 	if ($db->isActive() && array_key_exists($db->getDriver()->getValue(), $supportedDrivers) !== false) {
 		$ch->put("Installing migration files based on configuration.. ");
 
-		$basePkgPath = $fh->pathJoin('~/vendor/stoic/userbase/Migrations/');
+		$basePkgPath = $fh->pathJoin('~/vendor/stoic/userbase/Migrations/MYSQL/');
 		$baseMigPath = $fh->pathJoin($settings->get(SettingsStrings::ASSETS_PATH), $settings->get(SettingsStrings::MIGRATE_DB_PATH));
 
 		foreach (array_values($migrationFiles) as $file) {
