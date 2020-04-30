@@ -6,7 +6,7 @@ CREATE TABLE `User` (
 	`DateJoined` DATETIME NOT NULL,
 	`LastLogin` DATETIME NULL,
 	PRIMARY KEY (`ID`),
-	CONSTRAINT `IX_User_Username` UNIQUE(`Username`),
+	CONSTRAINT `IX_User_Name` UNIQUE(`Name`),
 	CONSTRAINT `IX_User_Email` UNIQUE(`Email`)
 );
 
