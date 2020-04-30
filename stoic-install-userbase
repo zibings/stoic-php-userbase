@@ -1,0 +1,101 @@
+#!/usr/bin/env php
+<?php
+
+	if (version_compare('7.2.0', PHP_VERSION, '>')) {
+		fwrite(STDERR, sprintf("Stoic is only supported on versions of PHP 7.2 or newer." . PHP_EOL . "You are using PHP %s (%s)" . PHP_EOL, PHP_VERSION, PHP_BINARY));
+
+		die(1);
+	}
+
+	if (!ini_get('date.timezone')) {
+		ini_set('date.timezone', 'UTC');
+	}
+
+	foreach (['../../' => '../../', '../vendor/' => '../', 'vendor/' => './'] as $file => $relPath) {
+		$path = "{$file}autoload.php";
+
+		if (file_exists($path)) {
+			define('STOIC_COMPOSER_INSTALL', $path);
+			define('STOIC_COMPOSER_PARENT', $relPath);
+
+			break;
+		}
+	}
+
+	if (!defined('STOIC_COMPOSER_INSTALL')) {
+		fwrite(STDERR, "You need to set up the project dependencies using Composer:" . PHP_EOL . PHP_EOL . "    composer install" . PHP_EOL);
+
+		die(1);
+	}
+
+	require(STOIC_COMPOSER_INSTALL);
+
+	use AndyM84\Config\ConfigContainer;
+	use Stoic\Pdo\PdoDrivers;
+	use Stoic\Pdo\PdoHelper;
+	use Stoic\Utilities\ConsoleHelper;
+	use Stoic\Utilities\FileHelper;
+	use Stoic\Web\Resources\SettingsStrings;
+	use Stoic\Web\Resources\StoicStrings;
+
+	// Script constants
+	define('SCRIPT_NAME',        'Stoic Framework Migration Utility');
+	define('SCRIPT_DESCRIPTION', 'Script that attempts to apply any available configuration\nand database migration files');
+	define('SCRIPT_USAGE',       '    vendor/bin/stoic-install-userbase // Installs the migration files that match your DSN configuration');
+
+	$ch = new ConsoleHelper($argv);
+	$fh = new FileHelper(STOIC_COMPOSER_PARENT);
+
+	if ($ch->hasShortLongArg('h', 'help', true)) {
+		$ch->putLine(SCRIPT_NAME);
+		$ch->putLine(SCRIPT_DESCRIPTION);
+		$ch->putLine();
+		$ch->putLine(SCRIPT_USAGE);
+		$ch->putLine();
+
+		exit;
+	}
+
+	if (!$fh->fileExists(StoicStrings::SETTINGS_FILE_PATH)) {
+		fwrite(STDERR, "You must initialize your application:" . PHP_EOL . PHP_EOL . "    vendor/bin/stoic-create" . PHP_EOL);
+
+		die(1);
+	}
+
+	$supportedDrivers = [
+		PdoDrivers::PDO_MYSQL => 'mysql'
+	];
+
+	$migrationFiles = [
+		'0001-StUsr-UserTables.sql'
+	];
+
+	$settings = new ConfigContainer($fh->getContents(StoicStrings::SETTINGS_FILE_PATH));
+
+	$ch->putLine(SCRIPT_NAME);
+	$ch->putLine();
+
+	$user = $settings->get(SettingsStrings::DB_USER, null);
+	$pass = $settings->get(SettingsStrings::DB_PASS, null);
+	$db = new PdoHelper($settings->get(SettingsStrings::DB_DSN), (empty($user) || $user == '<changeme>') ? null : $user, (empty($pass) || $pass == '<changeme>') ? null : $pass);
+
+	if ($db->isActive() && array_key_exists($db->getDriver()->getValue(), $supportedDrivers) !== false) {
+		$ch->put("Installing migration files based on configuration.. ");
+
+		$basePkgPath = $fh->pathJoin('~/vendor/stoic/user/Migrations/');
+		$baseMigPath = $fh->pathJoin($settings->get(SettingsStrings::ASSETS_PATH), $settings->get(SettingsStrings::MIGRATE_DB_PATH));
+
+		foreach (array_values($migrationFiles) as $file) {
+			$fh->copyFile($fh->pathJoin($basePkgPath, 'drop', $file), $fh->pathJoin($baseMigPath, 'drop', $file));
+			$fh->copyFile($fh->pathJoin($basePkgPath, 'up', $file), $fh->pathJoin($baseMigPath, 'up', $file));
+		}
+
+		$ch->putLine("DONE");
+	} else {
+		$ch->putLine("Cannot use stoic-php-userbase, only available for the following db engines: " . implode(', ', array_values($supportedDrivers)));
+	}
+
+	$ch->putLine();
+	$ch->putLine("To complete userbase installation, run the following command:");
+	$ch->putLine();
+	$ch->putLine("    vendor/bin/stoic-migrate");

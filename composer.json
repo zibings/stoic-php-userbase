@@ -1,6 +1,6 @@
 {
   "name": "stoic/userbase",
-  "description": "Basic user component, includes simple authentication framework",
+  "description": "Basic user component, includes simple authentication",
   "version": "0.1.0",
   "homepage": "https://stoic-framework.com",
   "autoload": {
@@ -23,6 +23,6 @@
     "phpunit/phpunit": "^8.5"
   },
   "bin": [
-    "stoic-install-users"
+    "stoic-install-userbase"
   ]
 }
