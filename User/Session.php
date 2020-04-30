@@ -3,9 +3,9 @@
 	namespace Stoic\User;
 
 	use Stoic\Log\Logger;
-	use Stoic\Pdo\BaseDbModel;
 	use Stoic\Pdo\BaseDbQueryTypes;
 	use Stoic\Pdo\BaseDbTypes;
+	use Stoic\Pdo\StoicDbModel;
 
 	/**
 	 * Represents a single user session for authentication purposes.
@@ -13,7 +13,7 @@
 	 * @package Stoic\User
 	 * @version 1.0.0
 	 */
-	class Session extends BaseDbModel {
+	class Session extends StoicDbModel {
 		/**
 		 * Network address associated with this session.
 		 *
@@ -70,18 +70,16 @@
 
 			$ret = new Session($db, $log);
 
-			try {
-				$stmt = $db->prepare($ret->generateClassQuery(BaseDbQueryTypes::SELECT, false) . " WHERE `Token` = :token AND `UserID` = :userId");
+			$ret->tryPdoExcept(function () use ($userId, $token, &$ret) {
+				$stmt = $ret->db->prepare($ret->generateClassQuery(BaseDbQueryTypes::SELECT, false) . " WHERE `Token` = :token AND `UserID` = :userId");
 				$stmt->bindValue(':token', $token, \PDO::PARAM_STR);
 				$stmt->bindValue(':userId', $userId, \PDO::PARAM_INT);
 				$stmt->execute();
 
 				if ($stmt->rowCount() > 0) {
-					$ret = Session::fromArray($stmt->fetch(\PDO::FETCH_ASSOC), $db, $log);
+					$ret = Session::fromArray($stmt->fetch(\PDO::FETCH_ASSOC), $ret->db, $ret->log);
 				}
-			} catch (\PDOException $ex) {
-				$ret->log->error("Failed to search for UserSession with token '{$token}': {ERROR}", ['ERROR' => $ex]);
-			}
+			}, "Failed to search for user session with token '{$token}'");
 
 			return $ret;
 		}
@@ -150,7 +148,7 @@
 			return false;
 		}
 
-		protected function __initialize() : void {
+		protected function __setupModel() : void {
 			$this->setTableName('UserSession');
 			$this->setColumn('address', 'Address', BaseDbTypes::STRING, false, true, false);
 			$this->setColumn('created', 'Created', BaseDbTypes::DATETIME, false, true, false);

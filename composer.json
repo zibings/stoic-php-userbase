@@ -1,12 +1,17 @@
 {
   "name": "stoic/userbase",
   "description": "Basic user component, includes simple authentication framework",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "homepage": "https://stoic-framework.com",
   "autoload": {
-    "classmap": [ "User/" ],
+    "psr-0": {
+      "Stoic\\User\\": "./User"
+    },
+    "psr-4": {
+      "Stoic\\User\\":  "./User"
+    },
     "exclude-from-classmap": [
-      "Tests/"
+      "./Tests/"
     ],
     "files": ["QueryBuilder.php"]
   },

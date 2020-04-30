@@ -3,7 +3,7 @@
 	namespace Stoic\User;
 
 	use Stoic\Log\Logger;
-	use Stoic\Pdo\BaseDbClass;
+	use Stoic\Pdo\StoicDbClass;
 
 	/**
 	 * Repository class for common actions with
@@ -11,17 +11,15 @@
 	 *
 	 * @version 1.0.0
 	 */
-	class Users extends BaseDbClass {
+	class Users extends StoicDbClass {
 		/**
 		 * Retrieves the name for the given user.
 		 *
 		 * @param integer $userId Identifier of the user.
 		 * @return string
 		 */
-		public function getUserName(int $userId) {
-			$user = User::fromId($userId, $this->db, $this->log);
-
-			return $user->name;
+		public function getUserName(int $userId) : string {
+			return User::fromId($userId, $this->db, $this->log)->name;
 		}
 
 		/**
@@ -31,7 +29,7 @@
 		 * @param null|integer $offset Optional offset for returned set.
 		 * @return User[]
 		 */
-		public function getUsers($limit = null, $offset = null) {
+		public function getUsers(?int $limit = null, ?int $offset = null) {
 			$ret = array();
 			$sql = "SELECT `Email`, `EmailConfirmed`, `DateJoined`, `ID`, `LastLogin`, `Name`, `Theme` FROM `User`";
 
@@ -66,7 +64,7 @@
 		 *
 		 * @return integer
 		 */
-		public function getUsersCount() {
+		public function getUsersCount() : int {
 			$ret = 0;
 
 			try {

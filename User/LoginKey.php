@@ -5,13 +5,14 @@
 	use Stoic\Log\Logger;
 	use Stoic\Pdo\BaseDbModel;
 	use Stoic\Pdo\BaseDbTypes;
+	use Stoic\Utilities\EnumBase;
 	use Stoic\Utilities\ReturnHelper;
 
 	/**
 	 * Represents a login key that is used to authenticate
 	 * a user within the system.
 	 *
-	 * @version 1.0
+	 * @version 1.0.0
 	 */
 	class LoginKey extends BaseDbModel {
 		/**
@@ -35,28 +36,29 @@
 
 
 		/**
-		 * Static method to retrieve a login key for the
-		 * given user and provider type.
+		 * Static method to retrieve a login key for the given user and provider type.
 		 *
 		 * @param integer $userId Integer value to use as the user identifier.
-		 * @param integer $provider Integer value to use as the provider type.
+		 * @param integer|LoginKeyProviders $provider Integer value to use as the provider type.
 		 * @param \PDO $db PDO instance for use by object.
 		 * @param Logger $log Logger instance for use by object, defaults to new instance.
-		 * @throws \InvalidArgumentException Thrown if invalid provider supplied to method.
+		 * @throws \InvalidArgumentException
 		 * @return LoginKey
 		 */
-		public static function fromUserAndProvider($userId, $provider, \PDO $db, Logger $log = null) {
-			if (!LoginKeyProviders::validValue($provider)) {
+		public static function fromUserAndProvider(int $userId, $provider, \PDO $db, Logger $log = null) : LoginKey {
+			$lkProvider = EnumBase::tryGetEnum($provider, LoginKeyProviders::class);
+
+			if ($lkProvider->getValue() === null) {
 				throw new \InvalidArgumentException("Invalid provider value ({$provider})");
 			}
 
 			$ret = new LoginKey($db, $log);
 			$ret->userId = intval($userId);
-			$ret->provider = new LoginKeyProviders($provider);
+			$ret->provider = $lkProvider;
 
 			if ($ret->read()->isBad()) {
 				$ret->userId = 0;
-				$ret->provider = new LoginKeyProviders(0);
+				$ret->provider = new LoginKeyProviders(LoginKeyProviders::ERROR);
 			}
 
 			return $ret;
@@ -64,8 +66,7 @@
 
 
 		/**
-		 * Determines if the system should attempt to create
-		 * a new LoginKey in the database.
+		 * Determines if the system should attempt to create a new LoginKey in the database.
 		 *
 		 * @return ReturnHelper
 		 */
@@ -73,7 +74,7 @@
 			$ret = new ReturnHelper();
 			$ret->makeBad();
 
-			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->value()) || empty($this->key)) {
+			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->getValue()) || empty($this->key)) {
 				$ret->addMessage("Invalid login key values for userId, provider, and/or key");
 
 				return $ret;
@@ -105,13 +106,12 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to delete
-		 * a LoginKey from the database.
+		 * Determines if the system should attempt to delete a LoginKey from the database.
 		 *
 		 * @return boolean
 		 */
 		protected function __canDelete() {
-			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->value())) {
+			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->getValue())) {
 				return false;
 			}
 
@@ -119,13 +119,12 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to read
-		 * a LoginKey from the database.
+		 * Determines if the system should attempt to read a LoginKey from the database.
 		 *
 		 * @return boolean
 		 */
 		protected function __canRead() {
-			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->value())) {
+			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->getValue())) {
 				return false;
 			}
 
@@ -133,13 +132,12 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to update
-		 * a LoginKey in the database.
+		 * Determines if the system should attempt to update a LoginKey in the database.
 		 *
 		 * @return boolean
 		 */
 		protected function __canUpdate() {
-			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->value()) || empty($this->key)) {
+			if ($this->userId < 1 || !LoginKeyProviders::validValue($this->provider->getValue()) || empty($this->key)) {
 				return false;
 			}
 
@@ -147,12 +145,11 @@
 		}
 
 		/**
-		 * Initializes a new LoginKey object after its constructor
-		 * has been called.
+		 * Initializes a new LoginKey object after its constructor has been called.
 		 *
 		 * @return void
 		 */
-		protected function __initialize() {
+		protected function __setupModel() {
 			$this->setTableName('LoginKey');
 			$this->setColumn('key', 'Key', BaseDbTypes::STRING, false, true, true);
 			$this->setColumn('provider', 'Provider', BaseDbTypes::INTEGER, true, true, false);

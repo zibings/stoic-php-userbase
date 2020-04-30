@@ -4,13 +4,14 @@
 
 	use Stoic\Log\Logger;
 	use Stoic\Pdo\BaseDbModel;
+	use Stoic\Pdo\BaseDbQueryTypes;
 	use Stoic\Pdo\BaseDbTypes;
 	use Stoic\Utilities\ReturnHelper;
 
 	/**
 	 * Represents a role available in the system.
 	 *
-	 * @version 1.0
+	 * @version 1.0.0
 	 */
 	class Role extends BaseDbModel {
 		/**
@@ -28,15 +29,14 @@
 
 
 		/**
-		 * Static method to instantiate a Role object with
-		 * a specific identifier.
+		 * Static method to instantiate a Role object with a specific identifier.
 		 *
 		 * @param integer $id Integer value to attempt using as Role identifier.
 		 * @param \PDO $db PDO instance for use by object.
 		 * @param Logger $log Logger instance for use by object, defaults to new instance.
 		 * @return Role
 		 */
-		public static function fromId($id, \PDO $db, Logger $log = null) {
+		public static function fromId(int $id, \PDO $db, Logger $log = null) : Role {
 			$ret = new Role($db, $log);
 			$ret->id = intval($id);
 			
@@ -47,10 +47,40 @@
 			return $ret;
 		}
 
+		/**
+		 * Static method to instantiate a Role object with the given name.
+		 *
+		 * @param string $name Role name value to look for in database.
+		 * @param \PDO $db PDO instance for use by object.
+		 * @param Logger $log Logger instance for use by object, defaults to new instance.
+		 * @throws \InvalidArgumentException 
+		 * @return Role
+		 */
+		public static function fromName(string $name, \PDO $db, Logger $log = null) : Role {
+			if (empty($name)) {
+				throw new \InvalidArgumentException("Invalid/empty name provided for initialization");
+			}
+
+			$ret = new Role($db, $log);
+
+			try {
+				$stmt = $db->prepare($ret->generateClassQuery(BaseDbQueryTypes::SELECT, false) . " WHERE `Name` = :name");
+				$stmt->bindValue(':name', $name, \PDO::PARAM_STR);
+				$stmt->execute();
+
+				if ($stmt->rowCount() > 0) {
+					$ret = Role::fromArray($stmt->fetch(\PDO::FETCH_ASSOC), $db, $log);
+				}
+			} catch (\PDOException $ex) {
+				$ret->log->error("Error retrieving role '{ROLE}': {ERROR}", ['ROLE' => $name, 'ERROR' => $ex]);
+			}
+
+			return $ret;
+		}
+
 
 		/**
-		 * Determines if the system should attempt to create
-		 * a new Role in the database.
+		 * Determines if the system should attempt to create a new Role in the database.
 		 *
 		 * @return boolean
 		 */
@@ -79,8 +109,7 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to delete
-		 * a Role from the database.
+		 * Determines if the system should attempt to delete a Role from the database.
 		 *
 		 * @return boolean
 		 */
@@ -93,8 +122,7 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to read
-		 * a Role from the database.
+		 * Determines if the system should attempt to read a Role from the database.
 		 *
 		 * @return boolean
 		 */
@@ -107,8 +135,7 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to update
-		 * a Role in the database.
+		 * Determines if the system should attempt to update a Role in the database.
 		 *
 		 * @return ReturnHelper
 		 */
@@ -147,12 +174,11 @@
 		}
 
 		/**
-		 * Initializes a new Role object after its constructor
-		 * has been called.
+		 * Initializes a new Role object after its constructor has been called.
 		 *
 		 * @return void
 		 */
-		protected function __initialize() {
+		protected function __setupModel() {
 			$this->setTableName('Role');
 			$this->setColumn('id', 'ID', BaseDbTypes::INTEGER, true, false, false, false, true);
 			$this->setColumn('name', 'Name', BaseDbTypes::STRING, false, true, true);

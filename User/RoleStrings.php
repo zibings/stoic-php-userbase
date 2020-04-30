@@ -3,17 +3,12 @@
 	namespace Stoic\User;
 
 	/**
-	 * The role strings available in the
-	 * system.
+	 * The role strings available in the system.
 	 *
-	 * @version 1.0
+	 * @version 1.0.0
 	 */
 	class RoleStrings {
 		const ADMINISTRATOR = 'Administrator';
-		const AUTHOR = 'Author';
-		const CONTRIBUTOR = 'Reviewer';
-		const VIEWER = 'Viewer';
-		const EDITOR = 'Editor';
 		const NONE = 'None';
 
 

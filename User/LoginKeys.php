@@ -5,10 +5,9 @@
 	use Stoic\Pdo\BaseDbClass;
 
 	/**
-	 * Repository class for common actions with
-	 * LoginKeys.
+	 * Repository class for common actions with LoginKeys.
 	 *
-	 * @version 1.0
+	 * @version 1.0.0
 	 */
 	class LoginKeys extends BaseDbClass {
 		/**
@@ -17,7 +16,7 @@
 		 * @param integer $userId Value of user identifier.
 		 * @return LoginKey[]
 		 */
-		public function getAllForUser($userId) {
+		public function getAllForUser(int $userId) {
 			if ($userId < 1) {
 				$this->log->error("Error retrieving login keys for user, called with invalid user identifier");
 
@@ -49,7 +48,7 @@
 		 * @param integer $userId Value of user identifier.
 		 * @return boolean
 		 */
-		public function deleteAllForUser($userId) {
+		public function deleteAllForUser(int $userId) : bool {
 			if ($userId < 1) {
 				$this->log->error("Error deleting user login keys, called with invalid user identifier");
 

@@ -3,8 +3,9 @@
 	namespace Stoic\User;
 
 	use Stoic\Log\Logger;
-	use Stoic\Pdo\BaseDbModel;
+	use Stoic\Pdo\BaseDbQueryTypes;
 	use Stoic\Pdo\BaseDbTypes;
+	use Stoic\Pdo\StoicDbModel;
 	use Stoic\Utilities\ReturnHelper;
 
 	/**
@@ -12,7 +13,7 @@
 	 *
 	 * @version 1.0.0
 	 */
-	class User extends BaseDbModel {
+	class User extends StoicDbModel {
 		/**
 		 * User's email address.
 		 *
@@ -20,15 +21,13 @@
 		 */
 		public $email;
 		/**
-		 * Whether or not the user has confirmed
-		 * their email address is real.
+		 * Whether or not the user has confirmed their email address is real.
 		 *
 		 * @var boolean
 		 */
 		public $emailConfirmed;
 		/**
-		 * Date and time the user's account was
-		 * created.
+		 * Date and time the user's account was created.
 		 *
 		 * @var \DateTimeInterface
 		 */
@@ -40,8 +39,7 @@
 		 */
 		public $id;
 		/**
-		 * Date and time the user last logged into
-		 * the site.
+		 * Date and time the user last logged into the site.
 		 *
 		 * @var null|\DateTimeInterface
 		 */
@@ -55,8 +53,7 @@
 
 
 		/**
-		 * Static method to instantiate a user from the given
-		 * email address.
+		 * Static method to instantiate a user from the given email address.
 		 *
 		 * @param string $email Email address to use when looking for user.
 		 * @param \PDO $db PDO instance for use by object.
@@ -72,26 +69,21 @@
 				return $ret;
 			}
 
-			try {
-				$stmt = $db->prepare("SELECT `Email`, `EmailConfirmed`, `DateJoined`, `ID`, `LastLogin`, `Name`, `Theme` FROM `User` WHERE `Email` = :email");
+			$ret->tryPdoExcept(function () use ($email, &$ret) {
+				$stmt = $ret->db->prepare($ret->generateClassQuery(BaseDbQueryTypes::SELECT, false) . " WHERE `Email` = :email");
 				$stmt->bindValue(':email', $email, \PDO::PARAM_STR);
 				$stmt->execute();
 
 				if ($stmt->rowCount() > 0) {
-					$ret = User::fromArray($stmt->fetch(\PDO::FETCH_ASSOC), $db, $log);
+					$ret = User::fromArray($stmt->fetch(\PDO::FETCH_ASSOC), $ret->db, $ret->log);
 				}
-			// @codeCoverageIgnoreStart
-			} catch (\PDOException $ex) {
-				$ret->log->error("Error retrieving user: {ERROR}", array('ERROR' => $ex));
-			}
-			// @codeCoverageIgnoreEnd
+			}, "Error retrieving user");
 
 			return $ret;
 		}
 
 		/**
-		 * Static method to retrieve a user by their unique
-		 * identifier.
+		 * Static method to retrieve a user by their unique identifier.
 		 *
 		 * @param integer $id Integer value to attempt using as User identifier.
 		 * @param \PDO $db PDO instance for use by object.
@@ -110,8 +102,7 @@
 		}
 
 		/**
-		 * Static method to determine if a provided string
-		 * is a valid email address.
+		 * Static method to determine if a provided string is a valid email address.
 		 *
 		 * @param string $string String to validate as an email address.
 		 * @return boolean
@@ -121,8 +112,7 @@
 		}
 
 		/**
-		 * Static method to determine if a provided string
-		 * is a valid username.
+		 * Static method to determine if a provided string is a valid username.
 		 *
 		 * @param string $string String to validate as a username.
 		 * @return boolean
@@ -137,8 +127,7 @@
 
 
 		/**
-		 * Determines if the system should attempt to create
-		 * a new User in the database.
+		 * Determines if the system should attempt to create a new User in the database.
 		 *
 		 * @return ReturnHelper
 		 */
@@ -152,35 +141,27 @@
 				return $ret;
 			}
 
-			try {
-				$stmt = $this->db->prepare("SELECT COUNT(*) FROM `User` WHERE `Email` = :email");
+			$this->tryPdoExcept(function () use (&$ret) {
+				$stmt = $this->db->prepare("SELECT COUNT(*) FROM {$this->prepColumn('User')} WHERE {$this->prepColumn('Email')} = :email");
 				$stmt->bindValue(':email', $this->email, \PDO::PARAM_STR);
 				$stmt->execute();
 
 				if ($stmt->fetch()['COUNT(*)'] > 0) {
 					$ret->addMessage("Found duplicate User by email, unable to create (Email: {$this->email})");
 
-					return $ret;
+					return;
 				}
 
 				$this->dateJoined = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-			// @codeCoverageIgnoreStart
-			} catch (\PDOException $ex) {
-				$this->log->error("Error checking for User duplicates on creation: {ERROR}", array('ERROR' => $ex));
-				$ret->addMessage("Failed to check for User duplicates on creation: {$ex->getMessage()}");
 
-				return $ret;
-			}
-			// @codeCoverageIgnoreEnd
-
-			$ret->makeGood();
+				$ret->makeGood();
+			}, "Failed to check for User duplicates during creation");
 
 			return $ret;
 		}
 
 		/**
-		 * Determines if the system should attempt to delete
-		 * a User from the database.
+		 * Determines if the system should attempt to delete a User from the database.
 		 *
 		 * @return boolean
 		 */
@@ -193,8 +174,7 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to read
-		 * a User from the database.
+		 * Determines if the system should attempt to read a User from the database.
 		 *
 		 * @return boolean
 		 */
@@ -207,8 +187,7 @@
 		}
 
 		/**
-		 * Determines if the system should attempt to update
-		 * a User in the database.
+		 * Determines if the system should attempt to update a User in the database.
 		 *
 		 * @return ReturnHelper
 		 */
@@ -222,7 +201,7 @@
 				return $ret;
 			}
 
-			try {
+			$this->tryPdoExcept(function () use (&$ret) {
 				$stmt = $this->db->prepare("SELECT COUNT(*) FROM `User` WHERE `Email` = :email AND `ID` <> :id");
 				$stmt->bindValue(':email', $this->email, \PDO::PARAM_STR);
 				$stmt->bindValue(':id', $this->id, \PDO::PARAM_INT);
@@ -231,29 +210,21 @@
 				if ($stmt->fetch()['COUNT(*)'] > 0) {
 					$ret->addMessage("Found duplicate User by email, unable to update (Email: {$this->email})");
 
-					return $ret;
+					return;
 				}
-			// @codeCoverageIgnoreStart
-			} catch (\PDOException $ex) {
-				$this->log->error("Error checking for User duplicates on update: {ERROR}", array('ERROR' => $ex));
-				$ret->addMessage("Failed to check for User duplicates on update: {$ex->getMessage()}");
 
-				return $ret;
-			}
-			// @codeCoverageIgnoreEnd
-
-			$ret->makeGood();
+				$ret->makeGood();
+			}, "Failed to check for User duplicates during update");
 
 			return $ret;
 		}
 
 		/**
-		 * Initializes a new User object after its constructor
-		 * has been called.
+		 * Initializes a new User object after its constructor has been called.
 		 *
 		 * @return void
 		 */
-		protected function __initialize() {
+		protected function __setupModel() : void {
 			$this->setTableName('User');
 			$this->setColumn('email', 'Email', BaseDbTypes::STRING, false, true, true);
 			$this->setColumn('emailConfirmed', 'EmailConfirmed', BaseDbTypes::BOOLEAN, false, true, true);
