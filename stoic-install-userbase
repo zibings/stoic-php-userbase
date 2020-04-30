@@ -80,17 +80,27 @@
 	$db = new PdoHelper($settings->get(SettingsStrings::DB_DSN), (empty($user) || $user == '<changeme>') ? null : $user, (empty($pass) || $pass == '<changeme>') ? null : $pass);
 
 	if ($db->isActive() && array_key_exists($db->getDriver()->getValue(), $supportedDrivers) !== false) {
-		$ch->put("Installing migration files based on configuration.. ");
+		$ch->putLine("Installing migration files based on configuration.. ");
+		$ch->putLine();
 
 		$basePkgPath = $fh->pathJoin('~/vendor/stoic/userbase/Migrations/MYSQL/');
 		$baseMigPath = $fh->pathJoin($settings->get(SettingsStrings::ASSETS_PATH), $settings->get(SettingsStrings::MIGRATE_DB_PATH));
 
 		foreach (array_values($migrationFiles) as $file) {
-			$fh->copyFile($fh->pathJoin($basePkgPath, 'drop', $file), $fh->pathJoin($baseMigPath, 'drop', $file));
-			$fh->copyFile($fh->pathJoin($basePkgPath, 'up', $file), $fh->pathJoin($baseMigPath, 'up', $file));
+			$ch->put("Copying migration file '{$file}'.. ");
+
+			try {
+				$fh->copyFile($fh->pathJoin($basePkgPath, 'drop', $file), $fh->pathJoin($baseMigPath, 'drop', $file));
+				$fh->copyFile($fh->pathJoin($basePkgPath, 'up', $file), $fh->pathJoin($baseMigPath, 'up', $file));
+
+				$ch->putLine('DONE');
+			} catch (Exception $ex) {
+				$ch->putLine('ERROR: ' . $ex->getMessage());
+			}
 		}
 
-		$ch->putLine("DONE");
+		$ch->putLine();
+		$ch->putLine("Finished installing migration files");
 	} else {
 		$ch->putLine("Cannot use stoic-php-userbase, only available for the following db engines: " . implode(', ', array_values($supportedDrivers)));
 	}
@@ -99,3 +109,4 @@
 	$ch->putLine("To complete userbase installation, run the following command:");
 	$ch->putLine();
 	$ch->putLine("    vendor/bin/stoic-migrate");
+	$ch->putLine();
