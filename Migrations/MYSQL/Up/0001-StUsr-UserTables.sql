@@ -17,8 +17,6 @@ CREATE TABLE `Role` (
 	CONSTRAINT `IX_RoleName` UNIQUE(`Name`)
 );
 
-INSERT INTO `Role` (`Name`) VALUES ('Administrator');
-
 CREATE TABLE `UserRole` (
 	`UserID` INT UNSIGNED NOT NULL,
 	`RoleID` INT UNSIGNED NOT NULL,

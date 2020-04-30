@@ -4,13 +4,13 @@
 
 	use AndyM84\Config\ConfigContainer;
 	use Stoic\Log\Logger;
+	use Stoic\Pdo\PdoHelper;
 	use Stoic\Utilities\ParameterHelper;
 	use Stoic\Utilities\ReturnHelper;
 	use Stoic\Web\Resources\HttpStatusCodes;
 
 	/**
-	 * Class that provides several common operations
-	 * for users within the system, as well as ways
+	 * Class that provides several common operations for users within the system, as well as ways
 	 * to be notified when the operations complete.
 	 *
 	 * @version 1.0.0
@@ -19,7 +19,6 @@
 		const EVT_AUTH = 'auth';
 		const EVT_CREATE = 'create';
 		const EVT_DELETE = 'delete';
-		const EVT_LOGIN = 'login';
 		const EVT_LOGOUT = 'logout';
 		const EVT_RESETPASSWORD = 'resetPassword';
 		const EVT_UPDATE = 'update';
@@ -28,9 +27,9 @@
 
 
 		/**
-		 * Internal \PDO instance.
+		 * Internal PdoHelper instance.
 		 *
-		 * @var \PDO
+		 * @var PdoHelper
 		 */
 		protected $db = null;
 		/**
@@ -48,7 +47,6 @@
 			self::EVT_AUTH => [],
 			self::EVT_CREATE => [],
 			self::EVT_DELETE => [],
-			self::EVT_LOGIN => [],
 			self::EVT_LOGOUT => [],
 			self::EVT_RESETPASSWORD => [],
 			self::EVT_UPDATE => []
@@ -62,7 +60,7 @@
 		 * @param callable $subscriber Callable subscriber to add.
 		 * @return void
 		 */
-		protected static function assignSubscriber($event, callable $subscriber) {
+		protected static function assignSubscriber(string $event, callable $subscriber) : void {
 			self::$events[$event][] = $subscriber;
 
 			return;
@@ -75,7 +73,7 @@
 		 * @param callable $subscriber Callable subscriber to add.
 		 * @return void
 		 */
-		public static function subscribeToAuth(callable $subscriber) {
+		public static function subscribeToAuth(callable $subscriber) : void {
 			static::assignSubscriber(self::EVT_AUTH, $subscriber);
 
 			return;
@@ -88,7 +86,7 @@
 		 * @param callable $subscriber Callable subscriber to add.
 		 * @return void
 		 */
-		public static function subscribeToCreate(callable $subscriber) {
+		public static function subscribeToCreate(callable $subscriber) : void {
 			static::assignSubscriber(self::EVT_CREATE, $subscriber);
 
 			return;
@@ -101,21 +99,8 @@
 		 * @param callable $subscriber Callable subscriber to add.
 		 * @return void
 		 */
-		public static function subscribeToDelete(callable $subscriber) {
+		public static function subscribeToDelete(callable $subscriber) : void {
 			static::assignSubscriber(self::EVT_DELETE, $subscriber);
-
-			return;
-		}
-
-		/**
-		 * Static method to subscribe to the LOGIN user operation
-		 * event.
-		 *
-		 * @param callable $subscriber Callable subscriber to add.
-		 * @return void
-		 */
-		public static function subscribeToLogin(callable $subscriber) {
-			static::assignSubscriber(self::EVT_LOGIN, $subscriber);
 
 			return;
 		}
@@ -127,7 +112,7 @@
 		 * @param callable $subscriber Callable subscriber to add.
 		 * @return void
 		 */
-		public static function subscribeToLogout(callable $subscriber) {
+		public static function subscribeToLogout(callable $subscriber) : void {
 			static::assignSubscriber(self::EVT_LOGOUT, $subscriber);
 
 			return;
@@ -140,7 +125,7 @@
 		 * @param callable $subscriber Callable subscriber to add.
 		 * @return void
 		 */
-		public static function subscribeToResetPassword(callable $subscriber) {
+		public static function subscribeToResetPassword(callable $subscriber) : void {
 			static::assignSubscriber(self::EVT_RESETPASSWORD, $subscriber);
 
 			return;
@@ -153,7 +138,7 @@
 		 * @param callable $subscriber Callable subscriber to add.
 		 * @return void
 		 */
-		public static function subscribeToUpdate(callable $subscriber) {
+		public static function subscribeToUpdate(callable $subscriber) : void {
 			static::assignSubscriber(self::EVT_UPDATE, $subscriber);
 
 			return;
@@ -166,7 +151,7 @@
 		 * @param array $args Arguments to pass along to subscriber callables.
 		 * @return void
 		 */
-		protected static function touchEvent($event, ...$args) {
+		protected static function touchEvent(string $event, ...$args) : void {
 			foreach (array_values(static::$events[$event]) as $callable) {
 				call_user_func_array($callable, $args);
 			}
@@ -178,10 +163,10 @@
 		/**
 		 * Instantiates a new UserEvents object.
 		 *
-		 * @param \PDO $db PDO instance for use by object.
+		 * @param PdoHelper $db PDO instance for use by object.
 		 * @param Logger $log Logger instance for use by object, defaults to new instance.
 		 */
-		public function __construct(\PDO $db, Logger $log = null) {
+		public function __construct(PdoHelper $db, Logger $log = null) {
 			$this->db = $db;
 			$this->log = $log ?? new Logger();
 
@@ -195,7 +180,7 @@
 		 * @param ParameterHelper $params Parameters for performing operation.
 		 * @return ReturnHelper
 		 */
-		public function auth(ParameterHelper $params) {
+		public function auth(ParameterHelper $params) : ReturnHelper {
 			$ret = new ReturnHelper();
 
 			if (!$params->hasValue('email') || !$params->hasValue('password')) {
@@ -249,10 +234,37 @@
 				$this->log->warning("Failed to update last login time for user '{$email}'");
 			}
 
+			$session = new Session($this->db, $this->log);
+			$session->address = $_SERVER['REMOTE_ADDR'];
+			$session->hostname = gethostbyaddr($session->address);
+			$session->token = Session::generateGuid(false);
+			$session->userId = $user->id;
+			$sCreate = $session->create();
+
+			if ($sCreate->isBad()) {
+				if ($sCreate->hasMessages()) {
+					foreach (array_values($sCreate->getMessages()) as $msg) {
+						$this->log->error($msg);
+					}
+				} else {
+					$this->log->error("Failed to create user session for auth");
+				}
+
+				return $ret;
+			}
+
+			if (!defined('STOIC_DISABLE_SESSION')) {
+				$_SESSION[Strings::SESSION_USRID] = $user->id;
+				$_SESSION[Strings::SESSION_TOKEN] = $session->token;
+			}
+
 			$ret->makeGood();
 			$ret->addResult([
 				self::STR_HTTP_CODE => HttpStatusCodes::OK,
-				self::STR_DATA => ['userId' => $user->id]
+				self::STR_DATA => [
+					'userId' => $user->id,
+					'token' => $session->token
+				]
 			]);
 
 			static::touchEvent(self::EVT_AUTH, $user->id, $this->db, $this->log);
@@ -266,10 +278,9 @@
 		 *
 		 * @param ParameterHelper $params Parameters for performing operation.
 		 * @param ConfigContainer $settings System settings to use while performing operation.
-		 * @param null|string $siteRoot Optional site root to override for PageHelper instances.
 		 * @return ReturnHelper
 		 */
-		public function create(ParameterHelper $params, ConfigContainer $settings, $siteRoot = null) {
+		public function create(ParameterHelper $params, ConfigContainer $settings) : ReturnHelper {
 			$ret = new ReturnHelper();
 
 			if (!$params->hasValue('email') || !$params->hasValue('new_password') || !$params->hasValue('confirm_password') || !$params->hasValue('name')) {
@@ -284,7 +295,6 @@
 			$new1 = $params->getString('new_password');
 			$new2 = $params->getString('confirm_password');
 			$preConfirm = $params->getBool('email_confirmed', false);
-            $userRole = $params->getString('role');
 
 			if ($new1 !== $new2 || empty($new1)) {
 				$ret->addMessage("Failed to create account, please contact an administrator");
@@ -323,8 +333,9 @@
 					return $ret;
 				}
 
-				$ret->makeGood();
 				static::touchEvent(self::EVT_CREATE, $user, $this->db, $this->log);
+
+				$ret->makeGood();
 			} catch (\Exception $ex) {
 				$ret->addMessage("Failed to create account, please contact an administrator");
 				$this->log->error("Failed to create account for user '{$email}': {ERROR}", ['ERROR' => $ex]);
@@ -340,17 +351,17 @@
 		 * @param ParameterHelper $params Parameters for performing operation.
 		 * @return ReturnHelper
 		 */
-		public function delete(ParameterHelper $params) {
+		public function delete(ParameterHelper $params) : ReturnHelper {
 			$ret = new ReturnHelper();
 
-			if (!$params->hasValue('id') || !$params->hasValue('uid') || !$params->hasValue('token')) {
+			if (!$params->hasValue('id') || !$params->hasValue('executor') || !$params->hasValue('token')) {
 				$ret->addMessage("Failed to delete user, incomplete parameters");
 
 				return $ret;
 			}
 
 			$id = $params->getInt('id');
-			$executorId = $params->getInt('uid');
+			$executorId = $params->getInt('executor');
 
 			if ($executorId == $id) {
 				$ret->addMessage("Failed to delete user, you shouldn't delete yourself");
@@ -358,147 +369,22 @@
 				return $ret;
 			}
 
-			$roleRepo = new UserRoles($this->db, $this->log);
-			$executorIsAdmin = $roleRepo->userInRoleByRoleName($executorId, RoleStrings::ADMINISTRATOR, 0);
-
-			if (!$executorIsAdmin) {
-				$ret->addMessage("Failed to delete user, admin role mismatch");
-				$this->log->error("Failed to delete user #{$id} because executor (user #{$executorId}) was not a site admin");
-
-				return $ret;
-			}
-
 			try {
 				$user = User::fromId($id, $this->db, $this->log);
+
+				if ($user->id < 1) {
+					throw new \Exception("Couldn't find user with that identifier");
+				}
+
+				static::touchEvent(self::EVT_DELETE, $user, $this->db, $this->log);
+				(new LoginKeys($this->db, $this->log))->deleteAllForUser($id);
 				
 				if ($user->delete()->isGood()) {
 					$ret->makeGood();
-
-					$roleRepo->removeAllUserOrganizationRoles($id, 0);
-					(new LoginKeys($this->db, $this->log))->deleteAllForUser($id);
-
-					static::touchEvent(self::EVT_DELETE, $user, $this->db, $this->log);
 				}
 			} catch (\Exception $ex) {
 				$ret->addMessage("Failed to delete user, an exception occurred");
 				$this->log->error("Failed to delete user #{$id} by user #{$executorId} with error: {ERROR}", ['ERROR' => $ex]);
-			}
-
-			return $ret;
-		}
-
-		/**
-		 * Performs the LOGIN event and notifies subscribers
-		 * if successful.
-		 *
-		 * @param ParameterHelper $params Parameters for performing operation.
-		 * @param mixed $requiredRole Optional role or array of roles to further secure login.
-		 * @return ReturnHelper
-		 */
-		public function login(ParameterHelper $params, $requiredRole = null) {
-			$ret = new ReturnHelper();
-
-			// TODO: Call AUTH and then do extra work
-
-			if (!$params->hasValue('email') || !$params->hasValue('password')) {
-				$ret->addMessage("Invalid parameter set provided, please try again");
-
-				return $ret;
-			}
-
-			$email = $params->getString('email');
-			$password = $params->getString('password');
-			$user = User::fromEmail($email, $this->db, $this->log);
-
-			if ($user->id < 1) {
-				$ret->addMessage("Invalid account provided");
-
-				return $ret;
-			}
-
-			if (!$user->emailConfirmed) {
-				$ret->addMessage("Unverified account provided");
-
-				return $ret;
-			}
-
-			$key = LoginKey::fromUserAndProvider($user->id, LoginKeyProviders::BASIC, $this->db, $this->log);
-
-			if ($key->userId < 1) {
-				$ret->addMessage("Invalid account provided");
-
-				return $ret;
-			}
-
-			if (!password_verify($password, $key->key)) {
-				$ret->addMessage("Invalid credentials provided");
-
-				return $ret;
-			}
-
-			$roleRepo = new UserRoles($this->db, $this->log);
-
-			// TODO: Someday we'll need to likely make this more granular for organization-specific logins.  - Andrew, 10/22/2018
-			if ($requiredRole !== null && !$roleRepo->userInRoleByRoleName($user->id, $requiredRole, 0)) {
-				$ret->addMessage("Invalid credentials provided");
-
-				return $ret;
-			}
-
-			if ($requiredRole === null && count($roleRepo->getAllUserRoles($user->id)) < 1) {
-				$ret->addMessage("Invalid account permissions");
-
-				return $ret;
-			}
-
-			if (password_needs_rehash($key->key, PASSWORD_DEFAULT)) {
-				$key->key = password_hash($password, PASSWORD_DEFAULT);
-
-				try {
-					$key->update();
-				} catch (\Exception $ex) {
-					$this->log->warning("Failed to rehash password for user '{$user->email}': {ERROR}", ['ERROR' => $ex]);
-				}
-			}
-
-			try {
-				$user->lastLogin = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-				$user->update();
-			} catch (\Exception $ex) {
-				$this->log->warning("Failed to update last login time to user '{$user->email}': {ERROR}", ['ERROR' => $ex]);
-			}
-
-			// TODO: Create 'SessionToken' model/repo
-
-			$sess = new ApiSession($this->db, $this->log);
-			$sess->userId = $user->id;
-			$sess->token = \G3\Utilities\getGuid(false);
-			$sess->hostname = gethostbyaddr($_SERVER[PhpStrings::Server_Remote_Addr]);
-			$sess->address = $_SERVER[PhpStrings::Server_Remote_Addr];
-
-			try {
-				$event = $sess->create();
-
-				if ($event->isGood()) {
-					$_SESSION[SessionStrings::Key_ApiToken] = $sess->token;
-					$_SESSION[SessionStrings::Key_UserId] = $user->id;
-
-					$ret->makeGood();
-					$ret->addResult(['user' => $user, 'session' => $sess]);
-					$this->aLog->logActivity(Activities::LOGIN, $user->id);
-					static::touchEvent(self::EVT_LOGIN, $user, $sess, $this->db, $this->log);
-
-					return $ret;
-				}
-
-				if ($event->hasMessages()) {
-					$ret->addMessage($event->getMessages()[0]);
-				} else {
-					$ret->addMessage("Issue creating API session");
-				}
-			} catch (\Exception $ex) {
-				$ret->addMessage("Failed to create API session");
-				$this->log->error("Failed to create API session for user '{$user->email}': {ERROR}", ['ERROR' => $ex]);
 			}
 
 			return $ret;
@@ -510,29 +396,32 @@
 		 *
 		 * @return ReturnHelper
 		 */
-		public function logout() {
+		public function logout() : ReturnHelper {
 			$ret = new ReturnHelper();
-			$session = new ParameterHelper($_SESSION);
-			$userId = $session->getInt(SessionStrings::Key_UserId);
-			$token = $session->getString(SessionStrings::Key_ApiToken);
 
-			if ($session->hasValue(SessionStrings::Key_UserId)) {
-				unset($_SESSION[SessionStrings::Key_UserId]);
-			}
+			if (!defined('STOIC_DISABLE_SESSION')) {
+				$session = new ParameterHelper($_SESSION);
+				$userId = $session->getInt(Strings::SESSION_USRID);
+				$token = $session->getString(Strings::SESSION_TOKEN);
 
-			if ($session->hasValue(SessionStrings::Key_ApiToken)) {
-				unset($_SESSION[SessionStrings::Key_ApiToken]);
+				if ($session->hasValue(Strings::SESSION_USRID)) {
+					unset($_SESSION[Strings::SESSION_USRID]);
+				}
+
+				if ($session->hasValue(Strings::SESSION_TOKEN)) {
+					unset($_SESSION[Strings::SESSION_TOKEN]);
+				}
 			}
 
 			if ($userId !== null && $token !== null) {
-				$sess = ApiSession::fromToken($userId, $token, $this->db, $this->log);
+				$sess = Session::fromToken($userId, $token, $this->db, $this->log);
 
 				try {
 					$sess->delete();
 
-					$ret->makeGood();
-					$this->aLog->logActivity(Activities::LOGOUT, $userId);
 					static::touchEvent(self::EVT_LOGOUT, $sess, $this->db, $this->log);
+
+					$ret->makeGood();
 				} catch (\Exception $ex) {
 					$this->log->error("Failed to delete session for token '{$token}': {ERROR}", ['ERROR' => $ex]);
 				}
@@ -548,7 +437,7 @@
 		 * @param ParameterHelper $params Parameters for performing operation.
 		 * @return ReturnHelper
 		 */
-		public function resetPassword(ParameterHelper $params) {
+		public function resetPassword(ParameterHelper $params) : ReturnHelper {
 			$ret = new ReturnHelper();
 
 			if (!$params->hasValue('id') || !$params->hasValue('new_password') || !$params->hasValue('confirm_password')) {
@@ -598,9 +487,11 @@
 					return $ret;
 				}
 
-				$ret->makeGood();
 				$ret->addResult(['user' => $user]);
+
 				static::touchEvent(self::EVT_RESETPASSWORD, $user, $this->db, $this->log);
+
+				$ret->makeGood();
 			} catch (\Exception $ex) {
 				$ret->addMessage("Failed password reset, an exception occurred");
 			}
@@ -609,8 +500,7 @@
 		}
 
 		/**
-		 * Performs the UPDATE event and notifies subscribers
-		 * if successful.
+		 * Performs the UPDATE event and notifies subscribers if successful.
 		 *
 		 * @param ParameterHelper $params Parameters for performing operation.
 		 * @return ReturnHelper
@@ -634,38 +524,7 @@
 				return $ret;
 			}
 
-			$executorIsAdmin = false;
-			$session = new ParameterHelper($_SESSION);
-
-			if ($session->getInt(SessionStrings::Key_UserId) != $user->id) {
-				$executor = User::fromId($session->getInt(SessionStrings::Key_UserId), $this->db, $this->log);
-
-				if ($executor->id < 1) {
-					$ret->addMessage("Failed user update, invalid executor information");
-
-					return $ret;
-				}
-
-				$sess = ApiSession::fromToken($executor->id, $session->getString(SessionStrings::Key_ApiToken), $this->db, $this->log);
-
-				if ($sess->userId < 1) {
-					$ret->addMessage("Failed user update, invalid executor information");
-
-					return $ret;
-				}
-
-				$roleRepo = new UserRoles($this->db, $this->log);
-
-				if (!$roleRepo->userInRoleByRoleName($sess->userId, RoleStrings::ADMINISTRATOR, 0)) {
-					$ret->addMessage("Failed user update, invalid executor");
-
-					return $ret;
-				}
-
-				$executorIsAdmin = true;
-			}
-
-			$account = User::fromId($params->getInt('id'), $this->db, $this->log);
+			$account = User::fromId($user->id, $this->db, $this->log);
 
 			try {
 				if (!$params->hasValue('email') || !User::validEmail($params->getString('email'))) {
@@ -708,33 +567,14 @@
 
 					$key->key = password_hash($new1, PASSWORD_DEFAULT);
 					$key->update();
-				} else if ($params->hasValue('new_password') && $params->hasValue('confirm_password') && $executorIsAdmin) {
-					$new1 = $params->getString('new_password');
-					$new2 = $params->getString('confirm_password');
-
-					if ($new1 !== $new2) {
-						$ret->addMessage("Failed user update, invalid password information supplied");
-
-						return $ret;
-					}
-
-					$key = LoginKey::fromUserAndProvider($user->id, LoginKeyProviders::BASIC, $this->db, $this->log);
-
-					if ($key->userId < 1) {
-						$ret->addMessage("Failed user update, invalid password information");
-
-						return $ret;
-					}
-
-					$key->key = password_hash($new1, PASSWORD_DEFAULT);
-					$key->update();
 				}
 
 				$user->update();
+				$ret->addResult(['user' => $user]);
+
+				static::touchEvent(self::EVT_UPDATE, $user, $this->db, $this->log);
 
 				$ret->makeGood();
-				$ret->addResult(['user' => $user]);
-				static::touchEvent(self::EVT_UPDATE, $user, $this->db, $this->log);
 			} catch (\Exception $ex) {
 				$ret->addMessage("Failed user update, exception occurred");
 				$this->log->error("Failed user update for user #{$user->id}, exception occurred: {ERROR}", ['ERROR' => $ex]);
@@ -743,4 +583,3 @@
 			return $ret;
 		}
 	}
-
